@@ -12,13 +12,7 @@ https://github.com/docker/for-mac/issues/410
 docker run --rm dobbs/docker-agent
 
 # invoke it
-eval $(docker run --rm dobbs/docker-agent)
-
-# confirm sshd is running
-docker ps --filter=name=docker-agent
-
-# confirm the tunnel is open
-ps -x | grep SSH_AUTH_SOCK | grep -v grep
+docker run --rm dobbs/docker-agent | bash -ux
 
 # enjoy your new-found, key-based ssh access
 docker run \

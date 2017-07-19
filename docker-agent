@@ -26,6 +26,44 @@ ssh-keyscan -p 2202 localhost >> ~/.ssh/known_hosts
 ssh -f -A -p 2202 root@localhost \
   'ln -fs $SSH_AUTH_SOCK /tmp/ssh-auth-sock; tail -f /dev/null'
 
+set +x
+
+STATUS=('')
+
+# confirm sshd is running
+if docker ps --filter=name=docker-agent | grep -q docker-agent; then
+  STATUS=("${STATUS[@]}" 'docker-agent is running')
+else
+  STATUS=("${STATUS[@]}" 'docker-agent is NOT running')
+fi
+
+# confirm the tunnel is open
+if ps -x | fgrep -q '$SSH_AUTH_SOCK /tmp/ssh-auth-sock;'; then
+  STATUS=("${STATUS[@]}" 'ssh tunnel is running')
+else
+  STATUS=("${STATUS[@]}" 'ssh tunnel is NOT running')
+fi
+
+STATUS=(
+  "${STATUS[@]}"
+  ''
+  'docker-agent-tmp volume contets:'
+  "$(docker run \
+       --rm \
+       -v "docker-agent-tmp:/tmp" \
+       dobbs/docker-agent \
+       ls -l /tmp
+  )"
+)
+
+printf "%s\n" \
+  '' \
+  '========================' \
+  'status' \
+  '========================' \
+  '' \
+  "${STATUS[@]}"
+
 # now that you've looked at what this does, you can invoke it
-# eval $(docker run --rm dobbs/docker-agent)
+# docker run --rm dobbs/docker-agent | bash -ux
 EOF
