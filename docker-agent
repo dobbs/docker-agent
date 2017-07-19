@@ -1,0 +1,30 @@
+#!/bin/sh
+
+cat <<'EOF'
+# stop and remove any previously running agent
+docker stop docker-agent &>/dev/null
+docker rm docker-agent &>/dev/null
+
+# start the docker-agent
+docker run \
+       --name=docker-agent \
+       --rm \
+       -d \
+       --init=true \
+       -p 2202:22 \
+       -v "$HOME/.ssh/id_rsa.pub:/root/.ssh/authorized_keys" \
+       -v "$HOME/.ssh/known_hosts:/root/.ssh/known_hosts" \
+       dobbs/docker-agent \
+       /usr/sbin/sshd -D
+
+# reset keys in known_hosts
+ssh-keygen -R '[localhost]:2202'
+ssh-keyscan -p 2202 localhost >> ~/.ssh/known_hosts
+
+# open the ssh auth socket inside our docker-agent
+ssh -f -A -p 2202 root@localhost \
+  'ln -fs $SSH_AUTH_SOCK /tmp/ssh-auth-sock; tail -f /dev/null'
+
+# now that you've looked at what this does, you can invoke it
+# eval $(docker run --rm dobbs/docker-agent)
+EOF
