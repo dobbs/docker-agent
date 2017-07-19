@@ -28,6 +28,17 @@ docker run \
   ssh -T git@github.com
 ```
 
+# Remember to lock the door before you leave:
+
+``` bash
+# let the --rm flag from docker run destroy the container
+docker stop docker-agent
+
+# also worth explicitly removing the named volume
+# if only to see which other containers have it mounted  :-)
+docker volume rm docker-agent-tmp
+```
+
 # how it works
 
 The image has sshd, a script, and /tmp exposed as a volume.
@@ -102,14 +113,3 @@ it.  Here are some examples:
       YOUR_CONTAINER \
       ssh -T git@github.com
     ```
-
-# Remember to lock the door before you leave:
-
-``` bash
-# let the --rm flag from docker run destroy the container
-docker stop docker-agent
-
-# also worth explicitly removing the named volume
-# if only to see which other containers have it mounted  :-)
-docker volume rm docker-agent-tmp
-```
