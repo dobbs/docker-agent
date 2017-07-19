@@ -46,13 +46,12 @@ fi
 
 STATUS=(
   "${STATUS[@]}"
-  ''
-  'docker-agent-tmp volume contets:'
+  'ls -al docker-agent-tmp'
   "$(docker run \
        --rm \
        -v "docker-agent-tmp:/tmp" \
        dobbs/docker-agent \
-       ls -l /tmp
+       ls -al /tmp
   )"
 )
 
@@ -61,7 +60,6 @@ printf "%s\n" \
   '========================' \
   'status' \
   '========================' \
-  '' \
   "${STATUS[@]}"
 
 # now that you've looked at what this does, you can invoke it
