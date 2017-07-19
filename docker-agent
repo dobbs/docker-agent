@@ -12,6 +12,7 @@ docker run \
        -d \
        --init=true \
        -p 2202:22 \
+       -v "docker-agent-tmp:/tmp" \
        -v "$HOME/.ssh/id_rsa.pub:/root/.ssh/authorized_keys" \
        -v "$HOME/.ssh/known_hosts:/root/.ssh/known_hosts" \
        dobbs/docker-agent \
