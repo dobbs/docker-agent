@@ -49,3 +49,7 @@ containers can access the socket for their own auth forwarding.
 Just run your container with `--volumes-from=docker-agent` and
 `--env SSH_AUTH_SOCK=/tmp/ssh-auth-sock` to enable ssh auth forwarding
 for any processes inside your container.
+
+You can lock things back up by `docker stop docker-agent` and
+`docker rm docker-agent`.  That'll stop the `sshd` which will kill the
+server end of the ssh tunnel.
