@@ -11,19 +11,21 @@ docker run \
        --rm \
        -d \
        --init=true \
-       -p 2202:22 \
+       -p 22 \
        -v "docker-agent-tmp:/tmp" \
        -v "$HOME/.ssh/id_rsa.pub:/root/.ssh/authorized_keys" \
        -v "$HOME/.ssh/known_hosts:/root/.ssh/known_hosts" \
        dobbs/docker-agent \
        /usr/sbin/sshd -D
 
+ssh_port=$(docker port docker-agent 22/tcp | grep -oE '[[:digit:]]+$')
+
 # reset keys in known_hosts
-ssh-keygen -R '[localhost]:2202'
-ssh-keyscan -p 2202 localhost >> ~/.ssh/known_hosts
+ssh-keygen -R "[localhost]:$ssh_port"
+ssh-keyscan -p $ssh_port localhost >> ~/.ssh/known_hosts
 
 # open the ssh auth socket inside our docker-agent
-ssh -f -A -p 2202 root@localhost \
+ssh -f -A -p $ssh_port root@localhost \
   'ln -fs $SSH_AUTH_SOCK /tmp/ssh-auth-sock; tail -f /dev/null'
 
 set +x
