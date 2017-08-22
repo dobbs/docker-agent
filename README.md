@@ -82,8 +82,11 @@ it.  Here are some examples:
           --entrypoint=/bin/sh YOUR_CONTAINER \
           id -u THE_APP_USER 2>/dev/null)
 
+    # figure out which port to use
+    PORT=$(docker port docker-agent 22/tcp | grep -oE '[[:digit:]]+$')
+
     # create your own tunnel which controls directory ownership
-    ssh -f -A -p 2202 root@localhost \
+    ssh -f -A -p $PORT root@localhost \
       'ln -fs \$SSH_AUTH_SOCK /tmp/ssh-auth-sock; chown -R $UID \$(dirname \$SSH_AUTH_SOCK); tail -f /dev/null'"
     ```
 
@@ -95,9 +98,12 @@ it.  Here are some examples:
           --entrypoint=/bin/sh YOUR_CONTAINER \
           id -u THE_APP_USER 2>/dev/null)
 
+    # figure out which port to use
+    PORT=$(docker port docker-agent 22/tcp | grep -oE '[[:digit:]]+$')
+
     # create your own tunnel which controls directory ownership
     # and creates its own symlink
-    ssh -f -A -p 2202 root@localhost \
+    ssh -f -A -p $PORT root@localhost \
       'ln -fs \$SSH_AUTH_SOCK /tmp/app-$UID-sock; chown -R $UID \$(dirname \$SSH_AUTH_SOCK); tail -f /dev/null'"
 
     # user the new symlink when you launch your container
