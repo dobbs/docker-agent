@@ -113,10 +113,10 @@ docker-agent-commands() {
 docker-agent-main() {
     DOCKER_AGENT_CONFIG=~/.ssh/docker-agent/config
 
-    docker-agent-tunnel-stop
     docker-agent-sshd-stop
     local ssh_port=$(docker-agent-sshd-start)
     docker-agent-tunnel-config $ssh_port > $DOCKER_AGENT_CONFIG
+    docker-agent-tunnel-stop
     docker-agent-tunnel-start
     docker-agent-long-status
 }
