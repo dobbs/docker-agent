@@ -36,23 +36,44 @@ docker-agent-sshd-status() {
     printf "%s\n" "$msg"
 }
 
-docker-agent-tunnel-start() {
-    local ssh_port=$1
+docker-agent-tunnel-config() {
+    local port=$1
+    local nickname=${2:-docker-agent}
+    local host_name=${3:-localhost}
     local known_hosts=~/.ssh/docker-agent/known_hosts
-    mkdir -p $(dirname "$known_hosts")
+    local cm_sockets=~/.ssh/docker-agent/cm_sockets
+    mkdir -p $(dirname "$known_hosts") $cm_sockets
 
-    ssh-keyscan -p $ssh_port localhost > $known_hosts
+    ssh-keyscan -p $port $host_name > $known_hosts 2> /dev/null
 
-    ssh -f \
-        -A \
-        -o UserKnownHostsFile=$known_hosts \
-        -p $ssh_port root@localhost \
+    cat <<EOF
+host $nickname
+    User root
+    HostName $host_name
+    Port $port
+    ControlMaster auto
+    ControlPath $cm_sockets/%r@%h:%p
+    UserKnownHostsFile $known_hosts
+    ForwardAgent true
+EOF
+}
+
+docker-agent-tunnel-start() {
+    local nickname=${1:-docker-agent}
+
+    ssh -f -F $DOCKER_AGENT_CONFIG $nickname \
         'ln -fs $SSH_AUTH_SOCK /tmp/ssh-auth-sock; tail -f /dev/null'
 }
 
+docker-agent-tunnel-stop() {
+    local nickname=${1:-docker-agent}
+    ssh -F $DOCKER_AGENT_CONFIG -O exit $nickname 2>/dev/null
+}
+
 docker-agent-tunnel-status() {
+    local nickname=${1:-docker-agent}
     local msg=''
-    if ps -x | fgrep '$SSH_AUTH_SOCK /tmp/ssh-auth-sock;' | grep -qv grep; then
+    if ssh -F $DOCKER_AGENT_CONFIG -O check $nickname 2>/dev/null ; then
         msg='docker-agent ssh tunnel is running'
     else
         msg='docker-agent ssh tunnel is NOT running'
@@ -84,18 +105,28 @@ docker-agent-long-status() {
            'run docker-agent-destroy to shutdown the agent and unload the functions'
 }
 
+docker-agent-commands() {
+    declare -f | grep ^docker-agent-
+}
+
 docker-agent-main() {
+    DOCKER_AGENT_CONFIG=~/.ssh/docker-agent/config
+
+    docker-agent-tunnel-stop
     docker-agent-sshd-stop
     local ssh_port=$(docker-agent-sshd-start)
-    docker-agent-tunnel-start $ssh_port
+    docker-agent-tunnel-config $ssh_port > $DOCKER_AGENT_CONFIG
+    docker-agent-tunnel-start
     docker-agent-long-status
 }
 
 docker-agent-destroy() {
     printf "%s\n" \
            '' \
+           'docker-agent-tunnel-stop' \
            'docker-agent-sshd-stop' \
            "$(declare -f | awk '/^docker-agent-/ {print $1}' | xargs echo unset -f)" \
+           'unset DOCKER_AGENT_CONFIG' \
            'docker volume rm docker-agent-tmp' \
            '' \
            '# now that you know what this does, make it so:' \
