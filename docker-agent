@@ -40,8 +40,8 @@ docker-agent-tunnel-config() {
     local port=$1
     local nickname=${2:-docker-agent}
     local host_name=${3:-localhost}
-    local known_hosts=~/.ssh/docker-agent/known_hosts
-    local cm_sockets=~/.ssh/docker-agent/cm_sockets
+    local known_hosts=${DOCKER_AGENT_SSH_DIR}/known_hosts
+    local cm_sockets=${DOCKER_AGENT_SSH_DIR}/cm_sockets
     mkdir -p $(dirname "$known_hosts") $cm_sockets
 
     ssh-keyscan -p $port $host_name > $known_hosts 2> /dev/null
@@ -111,8 +111,6 @@ docker-agent-commands() {
 }
 
 docker-agent-main() {
-    DOCKER_AGENT_CONFIG=~/.ssh/docker-agent/config
-
     docker-agent-sshd-stop
     local ssh_port=$(docker-agent-sshd-start)
     docker-agent-tunnel-config $ssh_port > $DOCKER_AGENT_CONFIG
@@ -127,13 +125,16 @@ docker-agent-destroy() {
            'docker-agent-tunnel-stop' \
            'docker-agent-sshd-stop' \
            "$(declare -f | awk '/^docker-agent-/ {print $1}' | xargs echo unset -f)" \
-           'unset DOCKER_AGENT_CONFIG' \
+           'unset DOCKER_AGENT_SSH_DIR DOCKER_AGENT_CONFIG' \
            'docker volume rm docker-agent-tmp' \
            '' \
            '# now that you know what this does, make it so:' \
            '# eval "$(docker-agent-destroy)"'
 }
 
+DOCKER_AGENT_SSH_DIR=~/.ssh/docker-agent
+DOCKER_AGENT_CONFIG=${DOCKER_AGENT_SSH_DIR}/config
+mkdir -p $DOCKER_AGENT_SSH_DIR
 docker-agent-main
 
 # now that you've looked at what this does, you can invoke it
