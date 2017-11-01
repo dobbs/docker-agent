@@ -1,69 +1,108 @@
-#!/bin/sh
+#!/bin/bash
 
-cat <<'EOF'
-# stop and remove any previously running agent
-docker stop docker-agent &>/dev/null
-docker rm docker-agent &>/dev/null
+docker-agent-sshd-stop() {
+    docker stop docker-agent &>/dev/null
+    docker rm docker-agent &>/dev/null
+}
 
-# start the docker-agent
-docker run \
-       --name=docker-agent \
-       --rm \
-       -d \
-       --init=true \
-       -p 22 \
-       -v "docker-agent-tmp:/tmp" \
-       -v "$HOME/.ssh/id_rsa.pub:/root/.ssh/authorized_keys" \
-       -v "$HOME/.ssh/known_hosts:/root/.ssh/known_hosts" \
-       dobbs/docker-agent \
-       /usr/sbin/sshd -D
+docker-agent-sshd-start() {
+    docker run \
+           --name=docker-agent \
+           --rm \
+           -d \
+           --init=true \
+           -p 22 \
+           -v "docker-agent-tmp:/tmp" \
+           -v "$HOME/.ssh/id_rsa.pub:/root/.ssh/authorized_keys" \
+           dobbs/docker-agent \
+           /usr/sbin/sshd -D \
+           &> /dev/null
 
-ssh_port=$(docker port docker-agent 22/tcp | grep -oE '[[:digit:]]+$')
+    local ssh_port=$(
+        docker port docker-agent 22/tcp \
+            | grep -oE '[[:digit:]]+$'
+          )
 
-# reset keys in known_hosts
-ssh-keygen -R "[localhost]:$ssh_port"
-ssh-keyscan -p $ssh_port localhost >> ~/.ssh/known_hosts
+    printf "%s\n" "$ssh_port"
+}
 
-# open the ssh auth socket inside our docker-agent
-ssh -f -A -p $ssh_port root@localhost \
-  'ln -fs $SSH_AUTH_SOCK /tmp/ssh-auth-sock; tail -f /dev/null'
+docker-agent-sshd-status() {
+    local msg=''
+    if docker ps --filter=name=docker-agent | grep -q docker-agent; then
+        msg='docker-agent sshd is running'
+    else
+        msg='docker-agent sshd is not running'
+    fi
+    printf "%s\n" "$msg"
+}
 
-set +x
+docker-agent-tunnel-start() {
+    local ssh_port=$1
+    local known_hosts=~/.ssh/docker-agent/known_hosts
+    mkdir -p $(dirname "$known_hosts")
 
-STATUS=('')
+    ssh-keyscan -p $ssh_port localhost > $known_hosts
 
-# confirm sshd is running
-if docker ps --filter=name=docker-agent | grep -q docker-agent; then
-  STATUS=("${STATUS[@]}" 'docker-agent is running')
-else
-  STATUS=("${STATUS[@]}" 'docker-agent is NOT running')
-fi
+    ssh -f \
+        -A \
+        -o UserKnownHostsFile=$known_hosts \
+        -p $ssh_port root@localhost \
+        'ln -fs $SSH_AUTH_SOCK /tmp/ssh-auth-sock; tail -f /dev/null'
+}
 
-# confirm the tunnel is open
-if ps -x | fgrep -q '$SSH_AUTH_SOCK /tmp/ssh-auth-sock;'; then
-  STATUS=("${STATUS[@]}" 'ssh tunnel is running')
-else
-  STATUS=("${STATUS[@]}" 'ssh tunnel is NOT running')
-fi
+docker-agent-tunnel-status() {
+    local msg=''
+    if ps -x | fgrep '$SSH_AUTH_SOCK /tmp/ssh-auth-sock;' | grep -qv grep; then
+        msg='docker-agent ssh tunnel is running'
+    else
+        msg='docker-agent ssh tunnel is NOT running'
+    fi
+    printf "%s\n" "$msg"
+}
 
-STATUS=(
-  "${STATUS[@]}"
-  'ls -al docker-agent-tmp'
-  "$(docker run \
-       --rm \
-       -v "docker-agent-tmp:/tmp" \
-       dobbs/docker-agent \
-       ls -al /tmp
-  )"
-)
+docker-agent-ls-volume() {
+    docker run \
+           --rm \
+           --entrypoint '' \
+           -v docker-agent-tmp:/tmp \
+           dobbs/docker-agent \
+           ls -al /tmp
+}
 
-printf "%s\n" \
-  '' \
-  '========================' \
-  'status' \
-  '========================' \
-  "${STATUS[@]}"
+docker-agent-long-status() {
+    printf "%s\n" \
+           '' \
+           '========================' \
+           'status' \
+           '========================' \
+           'ls -al docker-agent-tmp' \
+           "$(docker-agent-ls-volume)" \
+           '' \
+           "$(docker-agent-sshd-status)" \
+           "$(docker-agent-tunnel-status)" \
+           '' \
+           'run docker-agent-destroy to shutdown the agent and unload the functions'
+}
+
+docker-agent-main() {
+    docker-agent-sshd-stop
+    local ssh_port=$(docker-agent-sshd-start)
+    docker-agent-tunnel-start $ssh_port
+    docker-agent-long-status
+}
+
+docker-agent-destroy() {
+    printf "%s\n" \
+           '' \
+           'docker-agent-sshd-stop' \
+           "$(declare -f | awk '/^docker-agent-/ {print $1}' | xargs echo unset -f)" \
+           'docker volume rm docker-agent-tmp' \
+           '' \
+           '# now that you know what this does, make it so:' \
+           '# eval "$(docker-agent-destroy)"'
+}
+
+docker-agent-main
 
 # now that you've looked at what this does, you can invoke it
-# docker run --rm dobbs/docker-agent | bash -ux
-EOF
+# eval \"\$(docker run --rm dobbs/docker-agent)\"
